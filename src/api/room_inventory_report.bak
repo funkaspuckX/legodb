@@ -1,0 +1,52 @@
+# a report API showing contents of a location, including the parts in the room and their quantities
+from flask import Blueprint, jsonify, request, abort
+from ..models import db, Location, Shelf, Container, Compartment, Part, ShelvingUnit
+
+bp = Blueprint('room_inventory_report', __name__, url_prefix='/room_inventory_report')
+
+#debug test route
+@bp.route('/test', methods=['GET'])
+def test():
+    return jsonify({"message": "Room Inventory Report API is working!"}), 200
+
+@bp.route('/<int:location_id>', methods=['GET'])
+def show(location_id: int):
+    location = Location.query.get_or_404(location_id)
+    # Implementation for showing location inventory report
+    stmt = (db.select(
+        Location.id.label('location_id'),
+        Location.name.label('location_name'),
+        Shelf.id.label('shelf_id'),
+        Shelf.shelf_number.label('shelf_number'),
+        ShelvingUnit.id.label('shelving_unit_id'),
+        ShelvingUnit.description.label('shelving_unit_description'),
+        Container.id.label('container_id'),
+        Container.description.label('container_description'),
+        Compartment.id.label('compartment_id'),
+        Compartment.compartment_number.label('compartment_number'),
+        Part.id.label('part_id'),
+        Part.name.label('part_name')).join(Part, Part.id == Compartment.part_id)
+        .join(Compartment, Compartment.container_id == Container.id)
+        .join(Container, Container.shelf_id == Shelf.id)
+        .join(Shelf, Shelf.shelving_unit_id == ShelvingUnit.id)
+        .join(ShelvingUnit, ShelvingUnit.location_id == Location.id)
+        .where(Location.id == location_id)
+
+    )
+    result = db.session.execute(stmt).all()
+    report = []
+    for row in result:
+        report.append({
+            'location_id': row.location_id,
+            'location_name': row.location_name,
+            'shelf_id': row.shelf_id,
+            'shelf_number': row.shelf_number,
+            'container_id': row.container_id,
+            'container_description': row.container_description,
+            'compartment_id': row.compartment_id,
+            'compartment_number': row.compartment_number,
+            'part_id': row.part_id,
+            'part_name': row.part_name,
+            'quantity': row.quantity
+        })
+    return jsonify(report), 200 
